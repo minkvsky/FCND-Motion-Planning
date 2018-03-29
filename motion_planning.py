@@ -121,15 +121,30 @@ class MotionPlanning(Drone):
         self.target_position[2] = TARGET_ALTITUDE
 
         # TODO: read lat0, lon0 from colliders into floating point values
+        with open('colliders.csv', 'r') as f:
+            latlon = f.readline()
+        ll = latlon.strip().replace(',', '').split(' ')
+        lat0, lon0 = float(ll[1]), float(ll[3])
         
         # TODO: set home position to (lat0, lon0, 0)
+        # self.set_home_position(lat0, lon0, 0) # the comments is wrong oder
+        self.set_home_position(lon0, lat0, 0)
+
 
         # TODO: retrieve current global position
- 
-        # TODO: convert to current local position using global_to_local()
-        
+        global_position = self.global_position
+        print('retrieve current global position:')
+        print(self.global_position)
         print('global home {0}, position {1}, local position {2}'.format(self.global_home, self.global_position,
                                                                          self.local_position))
+
+ 
+        # TODO: convert to current local position using global_to_local()
+        local_position = global_to_local(global_position, self.global_home)
+        print('local position:{}'.format(local_position))
+        
+        # print('global home {0}, position {1}, local position {2}'.format(self.global_home, self.global_position,
+        #                                                                  self.local_position))
         # Read in obstacle map
         data = np.loadtxt('colliders.csv', delimiter=',', dtype='Float64', skiprows=3)
         # Determine offsets between grid and map
@@ -146,7 +161,7 @@ class MotionPlanning(Drone):
         #start = (int(current_local_pos[0]+north_offset), int(current_local_pos[1]+east_offset))
         
         # Set goal as some arbitrary position on the grid
-        grid_goal = (north_offset + 10, east_offset + 10)
+        grid_goal = (north_offset + 100, east_offset + 100)
         # TODO: adapt to set goal as latitude / longitude position and convert
 
         # Run A* to find a path from start to goal
