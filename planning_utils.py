@@ -13,36 +13,32 @@ def create_grid(data, drone_altitude, safety_distance):
     # minimum and maximum north coordinates
     north_min = np.floor(np.min(data[:, 0] - data[:, 3]))
     north_max = np.ceil(np.max(data[:, 0] + data[:, 3]))
-    print(north_min, north_max)
 
     # minimum and maximum east coordinates
     east_min = np.floor(np.min(data[:, 1] - data[:, 4]))
     east_max = np.ceil(np.max(data[:, 1] + data[:, 4]))
-    print(east_min, east_max)
+
     # given the minimum and maximum coordinates we can
     # calculate the size of the grid.
-    north_size = int(np.ceil((north_max - north_min)))
-    east_size = int(np.ceil((east_max - east_min)))
-    print(north_size, east_size)
+    north_size = int(np.ceil(north_max - north_min))
+    east_size = int(np.ceil(east_max - east_min))
+
     # Initialize an empty grid
     grid = np.zeros((north_size, east_size))
-    # Center offset for grid
-    north_min_center = np.min(data[:, 0])
-    east_min_center = np.min(data[:, 1])
+
     # Populate the grid with obstacles
     for i in range(data.shape[0]):
         north, east, alt, d_north, d_east, d_alt = data[i, :]
-
         if alt + d_alt + safety_distance > drone_altitude:
             obstacle = [
-                int(north - d_north - safety_distance - north_min_center),
-                int(north + d_north + safety_distance - north_min_center),
-                int(east - d_east - safety_distance - east_min_center),
-                int(east + d_east + safety_distance - east_min_center),
+                int(np.clip(north - d_north - safety_distance - north_min, 0, north_size-1)),
+                int(np.clip(north + d_north + safety_distance - north_min, 0, north_size-1)),
+                int(np.clip(east - d_east - safety_distance - east_min, 0, east_size-1)),
+                int(np.clip(east + d_east + safety_distance - east_min, 0, east_size-1)),
             ]
-            grid[obstacle[0]:obstacle[1], obstacle[2]:obstacle[3]] = 1
+            grid[obstacle[0]:obstacle[1]+1, obstacle[2]:obstacle[3]+1] = 1
 
-    return grid
+    return grid, int(north_min), int(east_min)
 
 
 # Assume all actions cost the same.
@@ -59,6 +55,11 @@ class Action(Enum):
     EAST = (0, 1, 1)
     NORTH = (-1, 0, 1)
     SOUTH = (1, 0, 1)
+    # diagonal motions with a cost of sqrt(2)
+    NORTH_WEST = (-1, -1, np.sqrt(2))
+    NORTH_EAST = (-1, 1, np.sqrt(2))
+    SOUTH_WEST = (1, -1, np.sqrt(2))
+    SOUTH_EAST = (1, 1, np.sqrt(2))
 
     @property
     def cost(self):
@@ -88,6 +89,15 @@ def valid_actions(grid, current_node):
         valid_actions.remove(Action.WEST)
     if y + 1 > m or grid[x, y + 1] == 1:
         valid_actions.remove(Action.EAST)
+
+    if (x - 1 < 0 and y - 1 < 0) or grid[x - 1, y - 1] == 1:
+        valid_actions.remove(Action.NORTH_WEST)
+    if (x - 1 < 0 and y + 1 > m) or grid[x - 1, y + 1] == 1:
+        valid_actions.remove(Action.NORTH_EAST)
+    if (x + 1 > n and y - 1 < 0) or grid[x + 1, y - 1] == 1:
+        valid_actions.remove(Action.SOUTH_WEST)
+    if (x + 1 > n and y + 1 > m) or grid[x + 1, y + 1] == 1:
+        valid_actions.remove(Action.SOUTH_EAST)
 
     return valid_actions
 
