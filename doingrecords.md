@@ -1,7 +1,7 @@
 - read lat0, lon0 from colliders into floating point values (done)
 - set home position (done)
 - retrieve current global position (done)
-- convert to current local position using global_to_local() 
+- convert to current local position using global_to_local()
 	- how to update self.local_position? update self._north and so on not update self.local_position
 - convert start position to current position rather than map center (done)
 - add diagonal motions with a cost of sqrt(2) to your A* implementation? (copy from planning)(done)
@@ -14,4 +14,4 @@
 - compute min/max (lat/lon) of grid
 	- how to auto modify goal depend on the edge (solve the problem:out of bounds)
 - auto return
-- 
+-
