@@ -6,12 +6,18 @@ from skimage.morphology import medial_axis
 from skimage.util import invert
 
 import numpy as np
+import numpy.linalg as LA
 
-from planning_utils import a_star, heuristic, create_grid, prune_path, find_start_goal
+from planning_utils import *
+
 from udacidrone import Drone
 from udacidrone.connection import MavlinkConnection
 from udacidrone.messaging import MsgID
 from udacidrone.frame_utils import global_to_local
+
+import pkg_resources
+pkg_resources.require("networkx==2.1")
+import networkx as nx
 
 
 class States(Enum):
@@ -149,8 +155,21 @@ class MotionPlanning(Drone):
         data = np.loadtxt('colliders.csv', delimiter=',', dtype='Float64', skiprows=2)
 
         # Define a grid for a particular altitude and safety margin around obstacles
-        grid, north_offset, east_offset = create_grid(data, TARGET_ALTITUDE, SAFETY_DISTANCE)
+        # grid, north_offset, east_offset = create_grid(data, TARGET_ALTITUDE, SAFETY_DISTANCE)
+        # the routine using Voronoi
+        grid, edges, north_offset, east_offset = create_grid_and_edges(data, TARGET_ALTITUDE, SAFETY_DISTANCE)
         print("North offset = {0}, east offset = {1}".format(north_offset, east_offset))
+
+        # create the graph with the weight of the edges
+        # set to the Euclidean distance between the points
+        G = nx.Graph()
+        for e in edges:
+            p1 = e[0]
+            p2 = e[1]
+            dist = LA.norm(np.array(p2) - np.array(p1))
+            G.add_edge(p1, p2, weight=dist)
+        
+
         # Define starting point on the grid (this is just grid center)
         grid_start_off = (-north_offset, -east_offset)
         # TODO: convert start position to current position rather than map center
@@ -166,6 +185,8 @@ class MotionPlanning(Drone):
         print('grid_goal:{}'.format(arbitrary_local_position))
         grid_goal = tuple(map(sum, zip(grid_start_off, arbitrary_local_position)))
 
+        
+
         # Run A* to find a path from start to goal
         # TODO: add diagonal motions with a cost of sqrt(2) to your A* implementation
         # or move to a different search space such as a graph (not done here)
@@ -174,14 +195,28 @@ class MotionPlanning(Drone):
         skeleton = medial_axis(invert(grid))
         skel_start, skel_goal = find_start_goal(skeleton, grid_start, grid_goal)
         print('skel start and goal: {}, {}'.format(skel_start, skel_goal))
-        # todo graph A* 
+
+        # Set goal on the graph
+        start_ne_g = closest_point(G, skel_start)
+        goal_ne_g = closest_point(G, skel_goal)   
 
         print('Local Start and Goal: ', grid_start, grid_goal)
-        path, _ = a_star(grid, heuristic, grid_start, grid_goal)
+        # grid A* something error (out of range) when impoper goal
+        # path, _ = a_star(grid, heuristic, grid_start, grid_goal)
+
+        # skeleton A* something error when send waypoints
+        path, _ = a_star(invert(skeleton).astype(np.int), heuristic, tuple(skel_start), tuple(skel_goal))
+        # graph A* 
+        # path, _ = a_star_graph(G, heuristic, start_ne_g, goal_ne_g)
+        print('path:{}'.format(path))
+        # int all point
+        path = [tuple(map(int, point)) for point in path]
+
         # TODO: prune path to minimize number of waypoints
         print('len(path):{}'.format(len(path)))
         path = prune_path(path)
         print('new len(path):{}'.format(len(path)))
+        print('ultimate path:{}'.format(path))
         # TODO (if you're feeling ambitious): Try a different approach altogether!
 
         # Convert path to waypoints
@@ -209,7 +244,7 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, default=5760, help='Port number')
     parser.add_argument('--host', type=str, default='127.0.0.1', help="host address, i.e. '127.0.0.1'")
     # add grid_goal
-    parser.add_argument('--goal', type=int, nargs="+", default=(200, 200), help='set grid_goal')
+    parser.add_argument('--goal', type=int, nargs="+", default=(100, 100), help='set grid_goal')
     args = parser.parse_args()
 
     conn = MavlinkConnection('tcp:{0}:{1}'.format(args.host, args.port), timeout=60)
